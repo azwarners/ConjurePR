@@ -1,105 +1,109 @@
 # ConjurePR Blueprint
 
-## 1. Product purpose
+> **Implementation directive for Codex**
+>
+> Read this entire blueprint before changing code.
+>
+> Implement **Phase 2 only**.
+>
+> Stop and report when Phase 2 is complete.
+>
+> Do not begin Phase 3 without explicit approval.
 
-ConjurePR is a small, API-first autonomous coding service that transforms a well-defined software issue into a reviewable draft pull request.
+---
 
-The user connects:
+## 1. Product definition
 
-* one OpenAI-compatible LLM;
-* one existing local Git repository;
-* one small bug report or feature request;
-* one or more validation commands.
+ConjurePR is an API-first autonomous coding service that transforms one small, well-defined software issue into one tested draft pull request for human review.
 
-ConjurePR then:
+Its permanent product promise is:
 
-1. evaluates whether the issue is suitable;
-2. inspects the relevant repository content;
-3. produces a short implementation plan;
-4. creates a dedicated Git branch;
-5. modifies the code;
-6. runs configured tests and checks;
-7. attempts a limited number of repairs;
-8. reviews the resulting diff;
-9. commits the changes;
-10. pushes the branch;
-11. opens a draft pull request for human review.
+> **One bounded software issue in. One tested draft pull request out.**
 
-ConjurePR never merges the pull request.
+ConjurePR is intentionally narrow. It must not become a general-purpose autonomous software engineer.
 
-## 2. Permanent product boundary
+It does not perform:
 
-ConjurePR performs **small, iterative development tasks** against existing codebases.
+- greenfield project construction;
+- broad architectural design or review;
+- issue decomposition;
+- open-ended codebase improvement;
+- large migrations or sweeping refactors;
+- generalized multi-agent collaboration;
+- free-form autonomous tool use;
+- deployment, release management, or autonomous merge.
 
-Supported work includes:
+Broader planning and orchestration belong to the user, Apmatia, OpenIPE, or other systems. ConjurePR executes one small issue and returns one draft pull request.
 
-* focused bug fixes;
-* small new features;
-* validation improvements;
-* narrowly scoped refactoring required by an issue;
-* new or updated tests;
-* small configuration changes;
-* minor documentation directly associated with a code change.
-
-ConjurePR is permanently not responsible for:
-
-* greenfield application construction;
-* broad architectural design;
-* deep architectural reviews;
-* open-ended codebase improvement;
-* large migrations;
-* sweeping refactors;
-* full documentation rewrites;
-* product planning;
-* issue decomposition;
-* project management;
-* deployment;
-* release management;
-* autonomous merging;
-* generalized agent behavior;
-* multi-agent collaboration.
-
-ConjurePR must not evolve into a general-purpose autonomous software engineer.
-
-Its responsibility remains:
-
-> Convert one bounded software issue into one draft pull request.
-
-## 3. Guiding principles
-
-### KISS
-
-Prefer a fixed, understandable workflow over dynamic planning machinery.
+## 2. Core principles
 
 ### Single responsibility
 
-ConjurePR produces pull requests. Broader planning and orchestration belong to Nick, Apmatia, OpenIPE, or other tools.
+ConjurePR exists to produce bounded pull requests.
+
+### KISS
+
+Prefer ordinary Python, explicit state, fixed stages, small modules, simple artifacts, and direct behavior.
 
 ### API first
 
-Every client uses the local HTTP API.
-
-The CLI must never bypass the API and directly invoke workflow internals.
+Every client uses the HTTP API. The CLI is only the first client and must not import workflow, Git, repository, command, or model internals.
 
 ### Human approval
 
-A successful run ends with a draft pull request awaiting review.
-
-PR creation does not mean the work is accepted.
+A successful job ends with a draft pull request. ConjurePR never merges automatically.
 
 ### Bounded autonomy
 
-ConjurePR may operate unattended, but only inside strict limits.
+The service may work unattended, but only within configured limits.
 
 ### Evidence over assertion
 
-Tests pass only when an actual command exits successfully. Files changed only when the Git diff proves it. The model’s claims are never treated as verification.
+The model's claims are never proof. Tests pass only when configured commands return success. Changed files are determined by Git. Pull-request creation must be confirmed by GitHub.
+
+### Disposable remote clones
+
+ConjurePR must never require access to the operator's working checkout. Every job begins by cloning an approved remote repository into ConjurePR-owned storage.
+
+## 3. Supported work
+
+Supported:
+
+- focused bug fixes;
+- small new features;
+- narrowly scoped validation improvements;
+- focused tests;
+- minor configuration changes;
+- small refactors required by a specific issue;
+- small documentation changes directly associated with code changes.
+
+Good issues:
+
+```text
+Add a --version option.
+Fix the crash when the preferences file is missing.
+Persist the selected terminal font size.
+Add duplicate project-name validation.
+Add tests for status filtering.
+```
+
+Unsupported:
+
+```text
+Build an Android client.
+Redesign the architecture.
+Create a new application.
+Modernize the entire repository.
+Rewrite all documentation.
+Improve the project generally.
+Refactor everything.
+```
+
 
 ## 4. High-level architecture
 
 ```text
 CLI
-  │
   │ HTTP
   ▼
 ConjurePR API
@@ -111,82 +115,98 @@ Application service
 Single-job queue and runner
   │
   ▼
-Fixed PR workflow
+Fixed pull-request workflow
+  ├── scope evaluator
   ├── LLM client
-  ├── repository tools
+  ├── repository clone manager
+  ├── workspace tools
+  ├── patch validator
   ├── Git tools
   ├── command runner
-  └── artifact storage
+  ├── artifact store
+  └── journal
 ```
 
 The first release supports:
 
-* one local user;
-* localhost access only;
-* one configured LLM;
-* one active job at a time;
-* multiple queued jobs;
-* existing local Git repositories;
-* GitHub pull requests through the `gh` CLI;
-* file-based job state and artifacts.
+- one local user;
+- localhost access only;
+- one configured OpenAI-compatible LLM;
+- one active job at a time;
+- multiple queued jobs;
+- registered remote repositories;
+- one fresh clone per job;
+- file-based state and artifacts;
+- GitHub integration;
+- draft pull requests only.
 
-Do not introduce a database, message broker, distributed workers, or graphical client.
+The prototype assumes a trusted, single-user host. Binding the API to
+localhost limits network exposure, but is not authentication: another local
+user or process may still be able to reach it.
+
+Do not introduce an external database, Redis, Celery, RabbitMQ, distributed workers, a GUI, public networking, user authentication, multi-user tenancy, or generalized plugins.
+
+Network egress isolation is intentionally deferred. The prototype may reach
+the configured LLM, GitHub, and other services available to its service
+account. Future hardening may add egress filtering, no-network test sandboxes,
+or per-job namespaces.
 
 ## 5. Runtime model
 
-Start the service with:
+Start the service:
 
 ```bash
 conjurepr serve
 ```
 
-Default address:
+Default API:
 
 ```text
 http://127.0.0.1:8765
 ```
 
-Submit work through the CLI:
+Submit:
 
 ```bash
-conjurepr submit \
-  --repo /data/projects/triagetty \
-  --issue issue.md \
-  --test-command "pytest -q"
+conjurepr submit   --repository example_project   --issue-file issue.md
 ```
 
-The CLI sends an HTTP request and exits after the job is accepted.
+The CLI sends an HTTP request and exits after acceptance. The server continues independently.
 
-The server continues running the job independently.
-
-The user can return later:
+Monitoring commands:
 
 ```bash
 conjurepr jobs
 conjurepr show <job-id>
 conjurepr watch <job-id>
 conjurepr diff <job-id>
-conjurepr open-pr <job-id>
+conjurepr journal <job-id>
+conjurepr artifacts <job-id>
+conjurepr cancel <job-id>
 ```
 
-## 6. Core workflow
+The CLI must never silently fall back to direct core access.
 
-ConjurePR uses a fixed prompt-driven workflow:
+## 6. Fixed workflow
 
 ```text
 Issue submitted
     ↓
 Scope evaluation
     ↓
+Prepare job directory
+    ↓
+Clone registered repository
+    ↓
+Create worker branch
+    ↓
 Repository analysis
     ↓
 Short implementation plan
     ↓
-Create worker branch
-    ↓
 Implement change
     ↓
-Run tests and checks
+Run configured tests and checks
     ↓
 Limited repair loop
     ↓
@@ -196,18 +216,17 @@ Optional final correction
     ↓
 Commit
     ↓
-Push branch
+Push worker branch
     ↓
 Create draft pull request
+    ↓
+Complete
 ```
 
-Ordinary Python controls this sequence.
+Ordinary Python controls the sequence. The LLM reasons inside stages. It cannot add stages, delegate work, browse freely, redesign the project, expand scope, grant itself tools, choose arbitrary commands, or change policy.
 
-The LLM reasons within individual stages. It does not invent new stages, delegate work, browse freely, redesign the project, or expand the objective.
 
 ## 7. Scope evaluation
-
-The first stage determines whether the submitted issue fits ConjurePR.
 
 Possible results:
 
@@ -218,265 +237,235 @@ too_large
 unsupported
 ```
 
-Accept tasks such as:
+The result includes:
 
-```text
-Add a --version command-line option.
+- decision;
+- concise explanation;
+- likely affected area;
+- ambiguities;
+- issue-reduction advice when rejected.
 
-Fix the crash when the preferences file is missing.
+A rejection is correct guardrail behavior, not application failure.
 
-Allow project lists to be filtered by status.
+Enforce configured limits:
 
-Persist the selected terminal font size.
+```toml
+[scope]
+maximum_changed_files = 12
+maximum_diff_lines = 800
 
-Add tests for duplicate project-name validation.
+[worker]
+maximum_runtime_minutes = 240
+maximum_model_calls = 20
+maximum_repair_attempts = 3
+maximum_review_corrections = 1
+maximum_command_seconds = 1200
 ```
 
-Reject or pause tasks such as:
+When a limit is exceeded, stop, preserve artifacts, identify the limit, and recommend dividing the issue.
 
-```text
-Build an Android client.
+## 8. Registered repositories
 
-Redesign the application architecture.
+ConjurePR accepts repository identifiers, not local paths or arbitrary URLs.
 
-Modernize the entire repository.
+Example request:
 
-Improve the documentation.
-
-Create a new application from scratch.
-
-Make Apmatia better.
+```json
+{
+  "repository": "example_project",
+  "title": "Add a version option",
+  "issue": "Add a --version option.",
+  "acceptance_criteria": [
+    "The command prints the installed version.",
+    "The command exits successfully.",
+    "Existing tests pass."
+  ],
+  "out_of_scope": [
+    "Redesigning the CLI."
+  ]
+}
 ```
-
-A rejected issue must include a clear explanation and, where practical, advice for reducing it into smaller issues.
-
-A scope rejection is a successful use of ConjurePR’s guardrails, not an application failure.
-
-## 8. Enforced limits
-
-Use configurable limits rather than relying entirely on model judgment.
 
 Example configuration:
 
 ```toml
-[scope]
-maximum_changed_files = 12
-maximum_diff_lines = 800
-maximum_model_calls = 20
-maximum_repair_attempts = 3
-maximum_review_corrections = 1
-maximum_runtime_minutes = 240
-maximum_command_seconds = 1200
+[repositories.example_project]
+url = "https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPOSITORY.git"
+base_branch = "main"
 ```
 
-When a job exceeds a limit, stop and report that the issue should be divided into smaller work.
+Reject local paths, `file://` URLs, unregistered repositories, arbitrary clone URLs, and arbitrary SSH hosts.
 
-Do not allow ConjurePR to quietly turn one issue into a multi-day development campaign.
-
-## 9. Project structure
+## 9. Per-job clone model
 
 ```text
-ConjurePR/
-├── pyproject.toml
-├── README.md
-├── BLUEPRINT.md
-├── config.example.toml
-├── src/
-│   └── conjurepr/
-│       ├── __init__.py
-│       ├── api.py
-│       ├── cli.py
-│       ├── config.py
-│       ├── models.py
-│       ├── service.py
-│       ├── job_runner.py
-│       ├── workflow.py
-│       ├── scope.py
-│       ├── llm_client.py
-│       ├── workspace.py
-│       ├── git_tools.py
-│       ├── command_runner.py
-│       ├── artifacts.py
-│       ├── journal.py
-│       └── prompts/
-│           ├── evaluate_scope.md
-│           ├── analyze.md
-│           ├── plan.md
-│           ├── implement.md
-│           ├── repair.md
-│           ├── review.md
-│           └── finalize.md
-└── tests/
-    ├── test_api.py
-    ├── test_cli.py
-    ├── test_scope.py
-    ├── test_service.py
-    ├── test_workflow.py
-    ├── test_workspace.py
-    ├── test_git_tools.py
-    └── test_artifacts.py
+jobs/
+└── cpr-0001/
+    ├── repo/
+    ├── artifacts/
+    ├── prompts/
+    ├── responses/
+    ├── commands/
+    ├── request.json
+    ├── state.json
+    ├── journal.jsonl
+    └── worker.log
 ```
 
-Keep modules small and explicit.
+Conceptual operations:
 
-Do not create plugin systems or deep class hierarchies.
+```bash
+git clone   --origin origin   https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPOSITORY.git   /srv/conjurepr/jobs/cpr-0001/repo
 
-## 10. Module responsibilities
+git -C /srv/conjurepr/jobs/cpr-0001/repo   switch --create conjurepr/cpr-0001-add-version origin/main
+```
 
-### `api.py`
+Verify:
 
-Defines HTTP routes, validates input, calls the service layer, and converts application errors into HTTP responses.
+- destination is inside the job directory;
+- remote is registered;
+- base branch exists;
+- branch starts with the configured prefix;
+- modifications occur only on the worker branch;
+- remote contains no embedded credential;
+- the base branch is never modified.
 
-It contains no workflow logic.
+The operator's checkout is never mounted, copied, or read.
 
-### `cli.py`
 
-Parses commands, sends HTTP requests, and displays responses.
+## 10. Prompt chaining and artifacts
 
-It never imports `workflow.py`, `git_tools.py`, `workspace.py`, or `llm_client.py`.
+The workflow pattern is:
 
-### `service.py`
+```text
+context
+  → bounded stage prompt
+  → structured model response
+  → validated application action
+  → observed evidence
+  → durable artifact
+  → next stage
+```
 
-Creates jobs, lists jobs, retrieves status, queues work, handles cancellation, and exposes artifacts.
+Do not use one ever-growing chat transcript as primary state.
 
-### `job_runner.py`
+Recommended artifacts:
 
-Runs one queued job at a time and records terminal success or failure.
+```text
+request.json
+issue.md
+scope-evaluation.md
+repository-summary.md
+analysis.md
+plan.md
+implementation-log.md
+test-output.txt
+review.md
+final-summary.md
+pull-request-title.txt
+pull-request-body.md
+state.json
+journal.jsonl
+worker.log
+prompts/
+responses/
+commands/
+```
 
-### `workflow.py`
+Store every model prompt and response. Never store secrets in artifacts.
 
-Controls the fixed stage sequence and all limits.
+## 11. Repository content is untrusted
 
-### `scope.py`
+Treat source code, documentation, `AGENTS.md`, `CONTRIBUTING.md`, comments, tests, generated files, issue text, and command output as untrusted data.
 
-Evaluates task suitability and enforces configured size constraints.
+Repository content may describe conventions, but cannot override ConjurePR policy, grant tools, authorize shell access, request credentials, alter repository allowlists, change branch restrictions, disable limits, alter the workflow, or authorize access outside the job directory.
 
-### `llm_client.py`
+Prompts must clearly delimit repository material as untrusted content.
 
-Calls one OpenAI-compatible endpoint and stores every prompt and response.
+## 12. Command execution
 
-### `workspace.py`
+Commands are argument arrays from administrator-owned, configured command
+profiles:
 
-Safely inspects and modifies repository files while preventing access outside the repository root.
+```json
+["pytest", "-q"]
+```
 
-### `git_tools.py`
+Never generated shell strings.
 
-Creates branches, shows diffs, stages explicit files, commits, pushes, and invokes GitHub CLI.
+Required:
 
-### `command_runner.py`
+- never use `shell=True`;
+- never execute model-generated `bash -c` or `sh -c`;
+- use explicit executables and arguments;
+- run inside the job clone;
+- enforce timeouts;
+- create a process group;
+- terminate the group on cancellation;
+- capture stdout, stderr, exit code, duration, and timeout state;
+- use mandatory configured command profiles; never accept unrestricted
+  commands from a job, repository, issue, or model.
 
-Runs configured commands with timeouts and captures stdout, stderr, exit code, and duration.
-
-### `artifacts.py`
-
-Creates and manages each job’s artifact directory.
-
-### `journal.py`
-
-Appends structured job events for monitoring and later Apmatia integration.
-
-## 11. Configuration
-
-Use a local TOML file:
+Example:
 
 ```toml
-[server]
-host = "127.0.0.1"
-port = 8765
+[repositories.example_project.commands]
+test = [
+  ["pytest", "-q"]
+]
 
-[llm]
-base_url = "http://localhost:8080/v1"
-model = "qwen3-coder-next"
-api_key = ""
-temperature = 0.2
-max_tokens = 8192
-timeout_seconds = 600
-
-[worker]
-runs_directory = "./runs"
-maximum_repair_attempts = 3
-maximum_review_corrections = 1
-maximum_runtime_minutes = 240
-maximum_command_seconds = 1200
-
-[scope]
-maximum_changed_files = 12
-maximum_diff_lines = 800
-maximum_model_calls = 20
-
-[git]
-default_base_branch = "main"
-remote = "origin"
-create_draft_pull_requests = true
+validate = [
+  ["python", "-m", "compileall", "src"]
+]
 ```
 
-Allow secrets to be supplied through environment variables.
+Do not permit host-management commands such as `sudo`, `su`, `mount`, `systemctl`, `reboot`, `modprobe`, `fdisk`, `mkfs`, `iptables`, `nft`, `docker`, `podman`, or `lxc`.
 
-Never commit real credentials.
+Configured command profiles are authoritative. A denylist is not sufficient.
 
-## 12. API
 
-Initial endpoints:
+## 13. Patch and path validation
 
-```text
-GET    /api/health
-
-POST   /api/jobs
-GET    /api/jobs
-GET    /api/jobs/{job_id}
-
-GET    /api/jobs/{job_id}/journal
-GET    /api/jobs/{job_id}/artifacts
-GET    /api/jobs/{job_id}/artifacts/{name}
-GET    /api/jobs/{job_id}/diff
-GET    /api/jobs/{job_id}/log
-
-POST   /api/jobs/{job_id}/cancel
-```
-
-Job submission:
+The model should normally return:
 
 ```json
 {
-  "repository_path": "/data/projects/triagetty",
-  "title": "Add configurable terminal font size",
-  "issue": "Add a preference that controls terminal font size and persists between launches.",
-  "acceptance_criteria": [
-    "The font size can be changed through preferences.",
-    "The selected value persists.",
-    "Existing tests pass."
-  ],
-  "out_of_scope": [
-    "Redesigning the preferences interface."
-  ],
-  "test_commands": [
-    ["pytest", "-q"]
-  ],
-  "base_branch": "main"
+  "summary": "Add version handling to the CLI entry point.",
+  "patch": "... unified diff ..."
 }
 ```
 
-Response:
+Before applying a patch:
 
-```json
-{
-  "job_id": "cpr-0001",
-  "status": "queued"
-}
-```
+1. parse all affected paths;
+2. reject malformed diffs;
+3. reject absolute paths;
+4. reject paths escaping the repository root;
+5. reject `..` traversal;
+6. resolve symlinks;
+7. reject symlink targets outside the repository;
+8. reject `.git/` changes;
+9. reject protected-path changes;
+10. record intended files;
+11. apply the patch;
+12. compare actual changed files with intended files;
+13. enforce file-count and diff-size limits;
+14. run `git diff --check`.
 
-The API must respond immediately after accepting the job.
+Protect `.github/workflows/` by default.
 
-## 13. Job states
+## 14. Job states
 
 ```text
 queued
 evaluating_scope
 needs_clarification
 rejected
+preparing
+cloning
+creating_branch
 analyzing
 planning
-preparing_branch
 implementing
 testing
 repairing
@@ -487,219 +476,129 @@ creating_pull_request
 completed
 failed
 cancelled
+interrupted
 ```
 
-A job in `needs_clarification` must stop until a later API capability is added or the issue is resubmitted more clearly.
+Persist state after every meaningful transition.
 
-The first release may simply return the clarification questions and require a new submission.
+## 15. Crash recovery
 
-## 14. Job artifacts
+Full automatic resume is not required initially.
 
-Each run receives:
+On startup:
+
+1. find jobs left active;
+2. mark them `interrupted`;
+3. preserve clone and artifacts;
+4. journal the interruption;
+5. expose it through the API;
+6. require resubmission or a later explicit restart feature.
+
+Truthful interruption is preferred to uncertain resumption.
+
+## 16. Cancellation
+
+Provide:
 
 ```text
-runs/
-└── cpr-0001/
-    ├── request.json
-    ├── issue.md
-    ├── scope-evaluation.md
-    ├── repository-summary.md
-    ├── analysis.md
-    ├── plan.md
-    ├── implementation-log.md
-    ├── test-output.txt
-    ├── review.md
-    ├── final-summary.md
-    ├── pull-request-title.txt
-    ├── pull-request-body.md
-    ├── state.json
-    ├── journal.jsonl
-    ├── worker.log
-    ├── prompts/
-    └── responses/
+POST /api/jobs/{job_id}/cancel
 ```
 
-Artifacts are the durable handoff between workflow stages.
+Queued jobs cancel immediately. Active jobs set a cancellation flag. The workflow checks between operations. Running process groups are terminated. Model calls have finite timeouts. Late responses are discarded. Artifacts remain. Branches and clones are not automatically deleted.
 
-Do not use an ever-growing chat transcript as the primary state.
+## 17. Idempotency and concurrency
 
-## 15. Git workflow
+Support an optional `Idempotency-Key`. Repeated submission with the same key returns the original job.
 
-For the first implementation, require a clean repository and use a dedicated branch.
+The first version allows one globally active job. Additional jobs remain queued. Only one job per repository may enter execution at a time.
 
-```bash
-git switch main
-git pull --ff-only
-git switch -c conjurepr/cpr-0001-terminal-font-size
-```
+Do not build a distributed coordinator.
+
+
+## 18. Git workflow
 
 ConjurePR must:
 
-* never commit on the base branch;
-* never push directly to the base branch;
-* never force-push;
-* never merge;
-* never discard uncommitted user work;
-* never automatically stash changes;
-* stage only files intentionally changed by the job.
+- create a dedicated worker branch;
+- stage only intended files;
+- never automatically use `git add .`;
+- never commit on the base branch;
+- never push to the base branch;
+- never force-push;
+- never merge;
+- never delete the branch automatically;
+- never use the operator's checkout.
 
-The first prototype may require a disposable or dedicated clone.
-
-Git worktrees can be considered later only if they simplify running multiple ConjurePR service instances. They are not required for the first milestone.
-
-## 16. Repository analysis
-
-Inspect only enough information to solve the submitted issue.
-
-Likely inputs include:
-
-* top-level directory tree;
-* README;
-* contributor or agent instructions;
-* package configuration;
-* relevant source files;
-* relevant tests;
-* text-search results.
-
-The analysis artifact should identify:
-
-* current behavior;
-* likely relevant files;
-* intended change;
-* risks;
-* ambiguities;
-* expected tests.
-
-This stage must not perform a broad architectural review.
-
-## 17. Planning
-
-Produce a short, issue-sized plan.
-
-A valid plan should normally contain only a few steps:
+Suggested branch:
 
 ```text
-1. Update the preferences model to store terminal font size.
-2. Apply the setting when initializing the terminal widget.
-3. Add persistence and validation tests.
-4. Run the configured test suite.
+conjurepr/cpr-0001-short-description
 ```
 
-Do not generate a project roadmap, architecture document, or extensive speculative design.
+Before commit:
 
-## 18. Implementation
+```bash
+git status --short
+git diff --check
+git diff --stat
+```
 
-Process the plan in controlled steps.
+Stage explicit paths only. Use one concise commit in the first release.
 
-For each step:
+## 19. GitHub credential model
 
-1. inspect relevant files;
-2. provide selected content to the model;
-3. request a unified diff;
-4. validate all affected paths;
-5. apply the patch;
-6. record changed files;
-7. inspect the resulting diff.
+Use a narrowly scoped GitHub credential:
 
-Prefer unified diffs.
+- selected repositories only;
+- Contents: Read and write;
+- Pull requests: Read and write.
 
-Allow whole-file replacement only for small files where doing so is clearly safer.
-
-The model must not receive unrestricted shell access.
-
-## 19. Testing and repair
-
-Run the exact configured commands.
-
-Example:
+The token cannot independently express “worker branches allowed, main denied.” Protection therefore uses:
 
 ```text
-pytest -q
-python -m compileall src
+Fine-grained token
+  limits repositories and permission categories
+
+GitHub branch rule
+  protects main
+
+ConjurePR application policy
+  allows only conjurepr/* branches and draft PRs
 ```
 
-Capture:
+Never merge, mark a PR ready automatically, force-push, push to `main`, alter branch rules, write secrets into remotes, or log tokens.
 
-* command arguments;
-* stdout;
-* stderr;
-* exit code;
-* duration;
-* timeout status.
+Deployment details belong in `INSTALL.md`, `QUICKSTART.md`, and
+`docs/install/` until a separate security document exists.
 
-When a command fails, provide the model with:
+## 20. Draft pull-request creation
 
-* the issue;
-* plan;
-* current diff;
-* exact command output;
-* remaining repair attempts.
+A successful job:
 
-Permit at most the configured number of repairs.
+1. commits validated changes;
+2. pushes the worker branch;
+3. generates a PR title and body;
+4. creates a draft PR;
+5. records the URL;
+6. stops.
 
-When repairs are exhausted, preserve the branch and artifacts and mark the job failed. Do not create a deceptively successful PR.
+For GitHub authentication, read the token from the protected token file only
+in the controller, pass it to GitHub CLI and Git subprocesses through a
+short-lived environment or credential-helper setup, and never place it in a
+remote URL, command-line argument, prompt, response, log, artifact, or PR
+body. Clone and push remotes must remain ordinary credential-free GitHub URLs.
+Use the same protected authentication flow for `gh auth status` and
+`gh pr create`.
 
-A later option may permit a clearly marked draft PR containing known failures, but this is not required initially.
-
-## 20. Diff review
-
-After tests pass, ask the model to review only the completed diff.
-
-The review should check for:
-
-* unmet acceptance criteria;
-* unrelated changes;
-* obvious regressions;
-* missing tests;
-* excessive complexity;
-* accidental generated files;
-* unsupported scope expansion.
-
-Allow one final correction cycle.
-
-Rerun tests after any correction.
-
-The review stage is not an invitation to redesign surrounding code.
-
-## 21. Finalization and draft PR
-
-When the work passes validation and review:
-
-1. identify intentionally changed files;
-2. generate a concise commit message;
-3. stage only those files;
-4. commit;
-5. push the branch;
-6. generate a PR title and body;
-7. create a draft pull request;
-8. save the PR URL.
-
-Verify GitHub CLI authentication:
+Conceptual commands:
 
 ```bash
-gh auth status
+git push -u origin <worker-branch>
+
+gh pr create   --draft   --base main   --head <worker-branch>   --title "<generated title>"   --body-file <generated-body-file>
 ```
 
-Push:
-
-```bash
-git push -u origin <branch>
-```
-
-Create the PR:
-
-```bash
-gh pr create \
-  --draft \
-  --base main \
-  --head <branch> \
-  --title "<generated title>" \
-  --body-file <generated body file>
-```
-
-A successful ConjurePR job ends with a draft PR URL.
-
-## 22. Pull-request format
+## 21. Pull-request format
 
 ```markdown
 ## Requested change
@@ -713,7 +612,6 @@ Summary of the implementation.
 ## Acceptance criteria
 
 - [x] Criterion verified
-- [x] Criterion verified
 - [ ] Criterion not verified, with explanation
 
 ## Files changed
@@ -723,11 +621,10 @@ Brief description of important files.
 ## Testing
 
 - `pytest -q` — passed
-- `python -m compileall src` — passed
 
 ## Notes for review
 
-Specific areas that deserve human attention.
+Areas deserving human attention.
 
 ## Limitations
 
@@ -736,16 +633,38 @@ Anything uncertain, incomplete, or manually untested.
 ## ConjurePR job
 
 - Job ID: `cpr-0001`
-- Model: `qwen3-coder-next`
+- Model: `MODEL_NAME`
 - Duration: ...
 - Model calls: ...
 ```
 
-Never fabricate test or acceptance results.
+Never fabricate results.
+
+
+## 22. Initial API
+
+Use FastAPI and JSON.
+
+```text
+GET    /api/health
+
+POST   /api/jobs
+GET    /api/jobs
+GET    /api/jobs/{job_id}
+
+GET    /api/jobs/{job_id}/journal
+GET    /api/jobs/{job_id}/artifacts
+GET    /api/jobs/{job_id}/artifacts/{name}
+GET    /api/jobs/{job_id}/diff
+GET    /api/jobs/{job_id}/log
+GET    /api/jobs/{job_id}/pull-request
+
+POST   /api/jobs/{job_id}/cancel
+```
+
+Job submission returns immediately.
 
 ## 23. CLI
-
-Initial commands:
 
 ```text
 conjurepr serve
@@ -758,269 +677,372 @@ conjurepr diff
 conjurepr journal
 conjurepr artifacts
 conjurepr log
+conjurepr pr
 conjurepr cancel
 ```
 
-Example:
+The CLI communicates only over HTTP, supports a configurable API URL, reports server errors clearly, and never imports core execution modules.
 
-```bash
-conjurepr submit \
-  --repo /data/projects/triagetty \
-  --title "Add configurable terminal font size" \
-  --issue-file issue.md \
-  --test-command "pytest -q"
+## 24. Configuration
+
+Use TOML.
+
+```toml
+[server]
+host = "127.0.0.1"
+port = 8765
+
+[paths]
+jobs = "/srv/conjurepr/jobs"
+cache = "/srv/conjurepr/cache"
+logs = "/srv/conjurepr/logs"
+state = "/srv/conjurepr/state"
+
+[llm]
+base_url = "http://127.0.0.1:8080/v1"
+model = "YOUR_MODEL_NAME"
+api_key = ""
+temperature = 0.2
+max_tokens = 8192
+timeout_seconds = 600
+
+[github]
+token_file = "/srv/conjurepr/credentials/github-token"
+branch_prefix = "conjurepr/"
+draft_pull_requests = true
+allow_merge = false
+allow_force_push = false
+allow_base_branch_push = false
+allow_workflow_file_changes = false
+
+[repositories.example_project]
+url = "https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPOSITORY.git"
+base_branch = "main"
+
+[repositories.example_project.commands]
+test = [
+  ["pytest", "-q"]
+]
+
+validate = [
+  ["python", "-m", "compileall", "src"]
+]
+
+[worker]
+maximum_active_jobs = 1
+maximum_runtime_minutes = 240
+maximum_model_calls = 20
+maximum_repair_attempts = 3
+maximum_review_corrections = 1
+maximum_command_seconds = 1200
+
+[scope]
+maximum_changed_files = 12
+maximum_diff_lines = 800
 ```
 
-The CLI must communicate exclusively through HTTP.
+In production, policy configuration and its containing directory must be
+owned by root and readable but not writable by the `conjurepr` service
+account. The service account may write job state and artifacts, but must not
+be able to replace or change repository allowlists, command profiles, branch
+restrictions, or security settings.
 
-Closing the CLI must not stop the job.
+Environment variables may override secrets. Never commit credentials.
 
-## 24. Cancellation and failure behavior
 
-Queued jobs cancel immediately.
+## 25. Suggested project structure
 
-Running jobs set a cancellation flag checked between major operations.
+```text
+ConjurePR/
+├── pyproject.toml
+├── README.md
+├── BLUEPRINT.md
+├── QUICKSTART.md
+├── INSTALL.md
+├── docs/
+│   └── install/
+├── config.example.toml
+├── src/
+│   └── conjurepr/
+│       ├── __init__.py
+│       ├── api.py
+│       ├── cli.py
+│       ├── config.py
+│       ├── models.py
+│       ├── service.py
+│       ├── job_runner.py
+│       ├── workflow.py
+│       ├── scope.py
+│       ├── llm_client.py
+│       ├── repositories.py
+│       ├── clone_manager.py
+│       ├── workspace.py
+│       ├── patching.py
+│       ├── git_tools.py
+│       ├── github.py
+│       ├── command_runner.py
+│       ├── artifacts.py
+│       ├── journal.py
+│       └── prompts/
+│           ├── evaluate_scope.md
+│           ├── analyze.md
+│           ├── plan.md
+│           ├── implement.md
+│           ├── repair.md
+│           ├── review.md
+│           └── finalize.md
+└── tests/
+```
 
-Preserve all artifacts after cancellation or failure.
+Keep modules small. Do not create deep inheritance or speculative provider systems.
 
-Failures must be visible through:
+## 26. Module responsibilities
 
-* job status;
-* journal;
-* log;
-* final error artifact.
+- `api.py`: routes, request validation, response models, error mapping. No workflow logic.
+- `cli.py`: parse commands, make HTTP requests, display results. No core imports.
+- `service.py`: create, list, retrieve, queue, cancel, and expose jobs and artifacts.
+- `job_runner.py`: run one job, enforce repository concurrency, invoke workflow.
+- `workflow.py`: fixed stages, transitions, limits, cancellation, completion.
+- `scope.py`: evaluate scope and parse accepted, clarification, oversized, or unsupported results.
+- `repositories.py`: load registered repositories and command profiles.
+- `clone_manager.py`: create job clone, validate remote, create worker branch.
+- `workspace.py`: list, read, search, validate paths, reject escapes.
+- `patching.py`: parse, validate, and apply diffs; enforce limits.
+- `llm_client.py`: call one OpenAI-compatible endpoint, save prompts and responses.
+- `git_tools.py`: status, diff, changed files, explicit staging, commit, push.
+- `github.py`: verify authentication, create draft PR, retrieve URL, never merge.
+- `command_runner.py`: argument-array execution, timeout, process groups, cancellation.
+- `artifacts.py`: create and manage job artifacts.
+- `journal.py`: append ordered structured events.
 
-Do not automatically delete branches or modified files after failure.
+## 27. Journal events
 
-## 25. Testing strategy
+Suggested events:
 
-Automated tests must use a mocked LLM.
+```text
+job_created
+job_queued
+job_started
+scope_started
+scope_completed
+clone_started
+clone_completed
+branch_created
+stage_started
+stage_completed
+llm_request_started
+llm_request_completed
+patch_requested
+patch_applied
+file_modified
+command_started
+command_completed
+repair_started
+review_completed
+commit_created
+branch_pushed
+pull_request_created
+job_completed
+job_failed
+job_cancelled
+job_interrupted
+```
 
-The ordinary test suite must not require a running model or GitHub account.
+
+## 28. Testing strategy
+
+The normal test suite must not require a real LLM, GitHub account, token, or network.
+
+Mock LLM and GitHub interactions. Use temporary Git repositories.
 
 Test:
 
-* API health;
-* job submission;
-* queue behavior;
-* CLI HTTP calls;
-* scope acceptance and rejection;
-* state transitions;
-* path safety;
-* artifact generation;
-* repair limits;
-* cancellation;
-* Git branch creation;
-* explicit staging;
-* preservation of the base branch.
+- API health;
+- CLI HTTP behavior;
+- server-unavailable errors;
+- job submission and idempotency;
+- queue behavior;
+- repository registration;
+- rejection of local paths and arbitrary URLs;
+- clone destination validation;
+- branch creation and base-branch preservation;
+- scope acceptance and rejection;
+- path traversal and symlink escapes;
+- protected paths;
+- patch parsing and limits;
+- argument-array commands;
+- timeout and process-group cancellation;
+- interrupted-state recovery;
+- explicit Git staging;
+- draft PR behavior;
+- absence of merge behavior.
 
-Use temporary Git repositories for integration tests.
+## 29. Implementation phases
 
-GitHub PR creation may initially be tested through mocked `gh` command responses.
-
-## 26. Implementation milestones
-
-### Milestone 1: API-first skeleton
+### Phase 1: API-first skeleton
 
 Deliver:
 
-* Python package;
-* configuration;
-* FastAPI service;
-* health endpoint;
-* CLI HTTP client;
-* logging;
-* tests.
+- Python package structure;
+- `pyproject.toml`;
+- configuration loading;
+- FastAPI application;
+- `GET /api/health`;
+- CLI HTTP client;
+- `conjurepr serve`;
+- `conjurepr health`;
+- logging foundation;
+- basic request and response models;
+- tests for the health endpoint and CLI health command.
 
 Success:
 
 ```bash
 conjurepr serve
+```
+
+starts the API, and:
+
+```bash
 conjurepr health
 ```
 
-### Milestone 2: Job submission and artifacts
+reaches it over HTTP.
 
-Deliver:
+The CLI must not import execution internals.
 
-* job model;
-* queue;
-* state files;
-* journal;
-* artifact directories;
-* status endpoints.
+**Stop after Phase 1.**
 
-Success:
+Do not implement jobs, cloning, model calls, Git operations, command execution, or later milestones.
 
-A submitted job is visible through the API and CLI after the submitting command exits.
+### Phase 2: Job submission and durable artifacts
 
-### Milestone 3: Scope, analysis, and planning
+Add job models, submission/list/detail endpoints, idempotency, run directories, state, journal, one-job queue, and cancellation state.
 
-Deliver:
+### Phase 3: Registered repositories and scope evaluation
 
-* scope evaluation;
-* LLM connection;
-* repository inspection;
-* analysis and planning prompts;
-* persisted prompts and responses.
+Add repository configuration, rejection of local paths and arbitrary URLs, LLM connection, scope prompt, structured scope results, and model-call limits.
 
-Success:
+### Phase 4: Fresh clone and branch preparation
 
-ConjurePR accepts a small issue, rejects an oversized one, and produces a focused plan without changing code.
+Add job clone directories, approved remote cloning, remote and base validation, and worker-branch creation.
 
-### Milestone 4: Branch and implementation
+### Phase 5: Analysis and planning
 
-Deliver:
+Add repository inspection, focused search and reads, repository summary, analysis, plan, and prompt/response storage.
 
-* clean-repository validation;
-* worker branch creation;
-* safe file operations;
-* patch application;
-* diff endpoint.
+### Phase 6: Patch implementation
 
-Success:
+Add structured model output, unified-diff validation, path and symlink safety, protected paths, patch application, limits, `git diff --check`, and diff endpoint.
 
-A small code change appears only on a ConjurePR branch.
+### Phase 7: Testing and repair
 
-### Milestone 5: Testing and repair
+Add configured command profiles, argument-array execution, timeouts, process-group cancellation, output capture, and bounded repair.
 
-Deliver:
+### Phase 8: Review and commit
 
-* configured command execution;
-* output capture;
-* repair prompt;
-* bounded repair cycle.
+Add final diff review, acceptance evaluation, one correction, retesting, explicit staging, commit, summary, and PR text.
 
-Success:
+### Phase 9: Push and draft pull request
 
-ConjurePR detects a failing test and attempts a limited correction.
+Add GitHub authentication, worker-branch push, draft PR creation, PR URL storage, PR endpoint, and CLI `pr`.
 
-### Milestone 6: Review and commit
+### Phase 10: Reliability hardening
 
-Deliver:
+Add interruption handling, cleanup policies, credential redaction, repository concurrency enforcement, richer diagnostics, and end-to-end mocked tests.
 
-* final diff review;
-* one optional correction;
-* explicit staging;
-* commit;
-* summary and PR text.
 
-Success:
+## 30. First real demonstration
 
-A complete run leaves a tested, committed branch ready to push.
+Use a disposable test repository or a deliberately small issue.
 
-### Milestone 7: Draft pull request
+The full demonstration succeeds when:
 
-Deliver:
+1. the service starts;
+2. the CLI submits through HTTP and exits;
+3. scope accepts the issue;
+4. the repository is cloned into ConjurePR-owned storage;
+5. a worker branch is created;
+6. analysis and plan artifacts are produced;
+7. a patch is safely applied;
+8. tests run;
+9. bounded repairs occur if needed;
+10. the final diff is reviewed;
+11. the change is committed;
+12. the branch is pushed;
+13. a draft PR appears;
+14. the base branch remains untouched;
+15. the operator decides whether to merge.
 
-* `gh` authentication validation;
-* branch push;
-* draft PR creation;
-* PR URL in job status.
-
-Success:
-
-One small issue becomes one reviewable draft pull request.
-
-## 27. First demonstration
-
-Use a disposable clone of TriageTTY or a tiny test repository.
-
-Choose a deliberately small issue, such as:
-
-* improve one error message;
-* add a `--version` option;
-* correct one preference behavior;
-* add validation for one invalid input;
-* add one missing test.
-
-The first demonstration succeeds when:
-
-1. the service accepts the issue through its API;
-2. the CLI exits;
-3. ConjurePR continues working;
-4. the scope gate accepts the issue;
-5. a dedicated branch is created;
-6. the code changes;
-7. tests run;
-8. the diff is reviewed;
-9. the change is committed;
-10. the branch is pushed;
-11. a draft PR appears on GitHub;
-12. `main` remains untouched;
-13. Nick decides whether to merge.
-
-## 28. Explicitly deferred
+## 31. Explicitly deferred
 
 Do not implement:
 
-* Flet or another GUI;
-* web dashboard;
-* external database;
-* authentication;
-* public network exposure;
-* multiple active workers within one service;
-* model switching per job;
-* multiple-model review;
-* agent personas;
-* free-form tool loops;
-* web research;
-* architecture analysis;
-* issue decomposition;
-* greenfield generation;
-* autonomous merge;
-* deployment;
-* release creation;
-* notifications;
-* scheduling;
-* Apmatia integration;
-* OpenIPE integration;
-* GitLab, Gitea, or Forgejo support.
+- graphical interfaces or dashboards;
+- external databases;
+- public API exposure;
+- authentication or multi-user support;
+- multiple simultaneous workers;
+- dynamic free-form agent loops;
+- personas or multi-agent collaboration;
+- architecture review or issue decomposition;
+- project planning or greenfield generation;
+- internet research;
+- arbitrary command execution;
+- autonomous merge, deployment, or releases;
+- GitLab, Gitea, or Forgejo;
+- model switching or multiple-model review;
+- distributed orchestration;
+- scheduling or notifications;
+- Apmatia or OpenIPE integration.
 
-Multiple independent ConjurePR instances may eventually be run against separate repositories. That does not require turning one instance into a distributed orchestration system.
+## 32. Coding guidance
 
-## 29. Coding guidance
+Prefer plain Python, FastAPI, explicit models, small functions, visible state, file artifacts, direct Git commands, clear logs, structured model responses, conservative failures, and readable code.
 
-Prefer:
+Avoid premature abstractions, generalized plugins, provider frameworks, deep inheritance, magical dependency injection, hidden workflow behavior, direct CLI-to-core access, arbitrary shells, broad refactors, and speculative features.
 
-* plain Python;
-* FastAPI;
-* explicit state;
-* simple prompt templates;
-* direct Git commands;
-* file-based artifacts;
-* short functions;
-* clear logs;
-* conservative error handling;
-* behavior Nick can understand by reading the code.
+The code should be understandable to a Linux administrator reading it later.
 
-Avoid:
+## 33. Definition of done
 
-* premature abstractions;
-* generalized agent frameworks;
-* dynamic free-form loops;
-* deep inheritance;
-* speculative plugins;
-* broad application frameworks;
-* unrequested architecture;
-* direct CLI-to-core access;
-* scope expansion.
+The first complete release allows a user to:
 
-## 30. Definition of done
+1. start the service;
+2. configure one model;
+3. register one repository;
+4. submit one small issue through the CLI;
+5. close the CLI;
+6. return later;
+7. inspect status, journal, prompts, responses, tests, logs, and diff;
+8. find a tested commit on a `conjurepr/*` branch;
+9. open the generated draft PR;
+10. review and merge or reject it manually.
 
-ConjurePR’s first release is complete when Nick can:
-
-1. start the local service;
-2. configure one OpenAI-compatible model;
-3. submit a small issue through the CLI;
-4. close the terminal client;
-5. return later;
-6. inspect the workflow status and artifacts;
-7. find a tested commit on a separate branch;
-8. open a generated draft pull request;
-9. review its summary, checks, and changed files;
-10. merge or reject it himself.
-
-The permanent product promise is:
+Permanent promise:
 
 > **Give ConjurePR one small, well-defined software issue. It will return one tested draft pull request for human review.**
+
+---
+
+# Final instruction to Codex
+
+Read this complete blueprint.
+
+Implement **Phase 2 only**.
+
+Do not implement cloning, LLM calls, Git operations, command execution, or
+later workflow behavior yet. Phase 2 adds only durable job intake and
+management state.
+
+Keep the implementation minimal, API-first, tested, and readable.
+
+When Phase 2 is complete:
+
+1. run the tests;
+2. summarize what was implemented;
+3. list files changed;
+4. report deviations or unresolved questions;
+5. stop.
+
+Do not begin Phase 3 without explicit approval.
